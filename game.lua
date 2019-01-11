@@ -1,3 +1,6 @@
+-- Activate multitouch
+system.activate("multitouch")
+
 -- Initialize variables
 
 local composer = require( "composer" )
@@ -121,9 +124,6 @@ local vent = CBE.newVent({
 	}
 })
 
-
-
-
 local function createAsteroid()
 
 	local newAsteroid = display.newImageRect( mainGroup, objectSheet, 1, 102, 85 )
@@ -153,59 +153,7 @@ local function createAsteroid()
 	newAsteroid:applyTorque( math.random( -6,6 ) )
 end
 
-
-local function fireLaser()
-
-	-- Play fire sound!
-	audio.play( fireSound )
-
-	local newLaser = display.newImageRect( mainGroup, objectSheet, 5, 14, 40 )
-	physics.addBody( newLaser, "dynamic", { isSensor=true } )
-	newLaser.isBullet = true
-	newLaser.myName = "laser"
-
-	newLaser.x = ship.x
-	newLaser.y = ship.y
-	newLaser:toBack()
-
-	transition.to( newLaser, { y=-40, time=500,
-		onComplete = function() display.remove( newLaser ) end
-	} )
-end
-
-
-local function dragShip( event )
-
-	local ship = event.target
-	local phase = event.phase
-
-
-
-	
-	if ( "began" == phase ) then
-		-- Set touch focus on the ship
-		display.currentStage:setFocus( ship )
-		-- Store initial offset position
-		ship.touchOffsetX = event.x - ship.x
-		ship.touchOffsetY = event.y - ship.y
-
-	elseif ( "moved" == phase ) then
-		-- Move the ship to the new touch position
-		ship.x = event.x - ship.touchOffsetX
-		ship.y = event.y - ship.touchOffsetY
-
-	elseif ( "ended" == phase or "cancelled" == phase ) then
-		-- Release touch focus on the ship
-		display.currentStage:setFocus( nil )
-	end
-
-	return true  -- Prevents touch propagation to underlying objects
-end
-
-
 local function gameLoop()
-
-	-- Create new asteroid
 	createAsteroid()
 
 	-- Remove asteroids which have drifted off screen
@@ -223,15 +171,88 @@ local function gameLoop()
 	end
 end
 
+local function endGame()
+	composer.setVariable( "finalScore", score )
+	composer.removeScene( "highscores" )
+	composer.gotoScene( "highscores", { time=800, effect="crossFade" } )
+end
+
+local function detectButton( event )
+ 
+	for i = 1,buttonGroup.numChildren do
+		local bounds = buttonGroup[i].contentBounds
+		if (
+			event.x > bounds.xMin and
+			event.x < bounds.xMax and
+			event.y > bounds.yMin and
+			event.y < bounds.yMax
+		) then
+			return buttonGroup[i]
+		end
+	end
+end
+
+local function fireLaser()
+	if(ship ~= nil) then
+		audio.play( fireSound )
+
+		local newLaser = display.newImageRect( mainGroup, objectSheet, 5, 14, 40 )
+		physics.addBody( newLaser, "dynamic", { isSensor=true } )
+		newLaser.isBullet = true
+		newLaser.myName = "laser"
+
+		newLaser.x = ship.x
+		newLaser.y = ship.y
+		newLaser:toBack()
+
+		transition.to( newLaser, { y=-40, time=500,
+			onComplete = function() display.remove( newLaser ) end
+		} )
+	end
+end
+
+local function dragShip( event )
+	local phase = event.phase
+	local touchOverButton = detectButton( event )
+
+	if ( phase == "began" ) then
+        if ( touchOverButton ~= nil ) then
+            if not ( buttonGroup.touchID ) then
+                buttonGroup.touchID = event.id
+				buttonGroup.activeButton = touchOverButton
+
+				if ( buttonGroup.activeButton.ID == "leftBtn" ) then
+					if(ship ~= nil) then
+						-- ship:setLinearVelocity( -150, 0 )
+						ship.deltaPerFrame = { -2, 0 }
+					end
+				elseif ( buttonGroup.activeButton.ID == "rightBtn" ) then
+					if(ship ~= nil) then
+						-- ship:setLinearVelocity( 150, 0 )
+						ship.deltaPerFrame = { 2, 0 }
+					end
+                end
+            end
+            return true
+		end
+	elseif ( "ended" == phase or "cancelled" == phase ) then
+			buttonGroup.touchID = nil
+			buttonGroup.activeButton = nil
+			if(ship ~= nil) then
+				ship.deltaPerFrame = { 0, 0 }
+			end
+	end
+end
+
 
 local function restoreShip()
 
 	ship.isBodyActive = false
 	ship.x = display.contentCenterX
-	ship.y = display.contentHeight - 100
+	ship.y = display.contentHeight - 150
 
 	-- Fade in the ship
-	transition.to( ship, { alpha=1, time=4000,
+	transition.to( ship, { alpha=1, time=1000,
 		onComplete = function()
 			ship.isBodyActive = true
 			died = false
@@ -239,13 +260,17 @@ local function restoreShip()
 	} )
 end
 
-
-local function endGame()
-	composer.setVariable( "finalScore", score )
-	composer.removeScene( "highscores" )
-	composer.gotoScene( "highscores", { time=800, effect="crossFade" } )
+local function removeAllAsteroids()
+	for i = #asteroidsTable, 1, -1 do
+		local asteroid = asteroidsTable[i]
+		transition.to( asteroid, { alpha=0, time=1000,
+			onComplete = function()
+				display.remove(asteroid)
+				table.remove( asteroidsTable, i )
+			end
+		} )
+	end
 end
-
 
 local function onCollision( event )
 
@@ -289,22 +314,53 @@ local function onCollision( event )
 
 				-- Play explosion sound!
 				audio.play( explosionSound )
+				vent.emitX = obj2.x or obj1.x
+				vent.emitY = obj2.y or obj1.y
+				vent:start()
 
+				if (obj1.myName == "asteroid") then
+					display.remove(obj1)
+				else
+					display.remove(obj2)
+				end
+
+				for i = #asteroidsTable, 1, -1 do
+					if ( asteroidsTable[i] == obj1 or asteroidsTable[i] == obj2 ) then
+						table.remove( asteroidsTable, i )
+						break
+					end
+				end
 				-- Update lives
 				lives = lives - 1
 				livesText.text = "Lives: " .. lives
 
 				if ( lives == 0 ) then
 					display.remove( ship )
+					ship = nil
 					timer.performWithDelay( 2000, endGame )
 				else
 					ship.alpha = 0
 					timer.performWithDelay( 1000, restoreShip )
+					removeAllAsteroids()
 				end
 			end
 		end
 	end
 end
+
+local function frameUpdate()
+	if ship ~= nil then
+		if ship.x < (ship.width * 1.5) then
+			ship.x = ship.width * 1.5
+		elseif ship.x > display.contentWidth - (ship.width * 1.5) then
+			ship.x = display.contentWidth - (ship.width * 1.5)
+		else
+			ship.x = ship.x + ship.deltaPerFrame[1]
+			ship.y = ship.y + ship.deltaPerFrame[2]
+		end
+	end
+end
+
 
 -- -----------------------------------------------------------------------------------
 -- Scene event functions
@@ -327,24 +383,51 @@ function scene:create( event )
 
 	uiGroup = display.newGroup()    -- Display group for UI objects like the score
 	sceneGroup:insert( uiGroup )    -- Insert into the scene's view group
+
+	buttonGroup = display.newGroup()
+	sceneGroup:insert ( buttonGroup )
+
+	local leftButton = display.newImageRect(buttonGroup, "leftButton.png", 100, 100)
+	leftButton.x, leftButton.y = 160, display.contentHeight-70
+	leftButton.canSlideOn = true
+	leftButton.ID = "leftBtn"
+
+	local rightButton = display.newImageRect(buttonGroup, "rightButton.png", 100, 100)
+	rightButton.x, rightButton.y = 270, display.contentHeight-70
+	rightButton.canSlideOn = true
+	rightButton.ID = "rightBtn"
+
+	local fireButton = display.newImageRect( buttonGroup, "fireButton.png", 120, 100 )
+	fireButton.x, fireButton.y = display.contentWidth - 150, display.contentHeight - 70
+	fireButton.canSlideOn = true
+	fireButton.ID = "fireBtn"
+
+	local groupBounds = buttonGroup.contentBounds
+	local groupRegion = display.newRect( 0, 0, groupBounds.xMax-groupBounds.xMin+200, groupBounds.yMax-groupBounds.yMin+200 )
+	groupRegion.x = groupBounds.xMin + ( buttonGroup.contentWidth/2 )
+	groupRegion.y = groupBounds.yMin + ( buttonGroup.height/2 )
+	groupRegion.isVisible = false
+	groupRegion.isHitTestable = true
 	
 	-- Load the background
 	local background = display.newImageRect( backGroup, "background.png", 800, 1400 )
 	background.x = display.contentCenterX
 	background.y = display.contentCenterY
 	
-	ship = display.newImageRect( mainGroup, objectSheet, 4, 98, 79 )
+	ship = display.newImageRect( mainGroup, "spaceShip.png", 100, 120 )
 	ship.x = display.contentCenterX
-	ship.y = display.contentHeight - 100
-	physics.addBody( ship, { radius=30, isSensor=true } )
+	ship.y = display.contentHeight - 150
+	physics.addBody( ship, "static" )
 	ship.myName = "ship"
+	ship.deltaPerFrame = {0, 0}
 
 	-- Display lives and score
 	livesText = display.newText( uiGroup, "Lives: " .. lives, 200, 80, font, 24 )
 	scoreText = display.newText( uiGroup, "Score: " .. score, 400, 80, font, 24 )
 
-	ship:addEventListener( "tap", fireLaser )
-	ship:addEventListener( "touch", dragShip )
+	-- leftButton:addEventListener( "tap", fireLaser )
+	groupRegion:addEventListener( "touch", dragShip )
+	fireButton:addEventListener( "touch", fireLaser )
 
 	explosionSound = audio.loadSound( "audio/explosion.wav" )
 	fireSound = audio.loadSound( "audio/fire.wav" )
@@ -365,6 +448,7 @@ function scene:show( event )
 		-- Code here runs when the scene is entirely on screen
 		physics.start()
 		Runtime:addEventListener( "collision", onCollision )
+		Runtime:addEventListener( "enterFrame", frameUpdate )
 		gameLoopTimer = timer.performWithDelay( 1000, gameLoop, 0 )
 		-- Start the music!
 		audio.play( musicTrack, { channel=1, loops=-1 } )
