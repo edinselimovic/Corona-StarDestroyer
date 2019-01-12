@@ -85,7 +85,7 @@ local function updateText()
 	scoreText.text = "Score: " .. score
 end
 
-local vent = CBE.newVent({
+local shipVent = CBE.newVent({
 	preset = "flame",
 	title = "explosion",
 
@@ -123,6 +123,46 @@ local vent = CBE.newVent({
 		scaleRateY = 1.05
 	}
 })
+
+local asteroidVent = CBE.newVent({
+	preset = "lasergun",
+	title = "explosion",
+
+	positionType = "inRadius",
+	color = {{1, 1, 0}, {1, 0.5, 0}, {0.2, 0.2, 0.2}},
+	particleProperties = {blendMode = "add"},
+	emitX = display.contentCenterX,
+	emitY = display.contentCenterY,
+
+	emissionNum = 5,
+	emitDelay = 5,
+	perEmit = 1,
+
+	inTime = 100,
+	lifeTime = 0,
+	outTime = 600,
+
+	onCreation = function(particle)
+		particle:changeColor({
+			color = {0.9, 0.9, 0.9},
+			time = 600
+		})
+	end,
+
+	onUpdate = function(particle)
+		particle:setCBEProperty("scaleRateX", particle:getCBEProperty("scaleRateX") * 0.998)
+		particle:setCBEProperty("scaleRateY", particle:getCBEProperty("scaleRateY") * 0.998)
+	end,
+
+	physics = {
+		velocity = 0,
+		gravityY = -0.035,
+		angles = {0, 360},
+		scaleRateX = 1.05,
+		scaleRateY = 1.05
+	}
+})
+
 
 local function createAsteroid()
 
@@ -284,9 +324,9 @@ local function onCollision( event )
 		then
 						
 		    audio.play( explosionSound )
-			vent.emitX = obj2.x or obj1.x
-			vent.emitY = obj2.y or obj1.y
-			vent:start()
+			asteroidVent.emitX = obj2.x or obj1.x
+			asteroidVent.emitY = obj2.y or obj1.y
+			asteroidVent:start()
 
 			display.remove( obj1 )
 			display.remove( obj2 )
@@ -298,7 +338,7 @@ local function onCollision( event )
 			end
 
 			timer.performWithDelay(8000, function()
-				vent:stop()
+				asteroidVent:stop()
 			end, 0)
 
 
@@ -314,9 +354,9 @@ local function onCollision( event )
 
 				-- Play explosion sound!
 				audio.play( explosionSound )
-				vent.emitX = obj2.x or obj1.x
-				vent.emitY = obj2.y or obj1.y
-				vent:start()
+				shipVent.emitX = obj2.x or obj1.x
+				shipVent.emitY = obj2.y or obj1.y
+				shipVent:start()
 
 				if (obj1.myName == "asteroid") then
 					display.remove(obj1)
