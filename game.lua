@@ -397,7 +397,7 @@ function scene:create( event )
 	rightButton.canSlideOn = true
 	rightButton.ID = "rightBtn"
 
-	local fireButton = display.newImageRect( buttonGroup, "fireButton.png", 120, 100 )
+	local fireButton = display.newImageRect( buttonGroup, "fireButton.png", 100, 100 )
 	fireButton.x, fireButton.y = display.contentWidth - 150, display.contentHeight - 70
 	fireButton.canSlideOn = true
 	fireButton.ID = "fireBtn"
