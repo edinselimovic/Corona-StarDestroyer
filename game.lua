@@ -271,16 +271,25 @@ local function dragShip( event )
 						-- ship:setLinearVelocity( 150, 0 )
 						ship.deltaPerFrame = { 2, 0 }
 					end
-                end
+				elseif (buttonGroup.activeButton.ID == "fireBtn") then
+					fireLaser()
+				end
             end
             return true
 		end
+	elseif ( event.phase == "moved" ) then
+	-- Handle slide off
+	if ( touchOverButton == nil and buttonGroup.activeButton ~= nil ) then
+		event.target:dispatchEvent( { name="touch", phase="ended", target=event.target, x=event.x, y=event.y } )
+		return true
+	end
 	elseif ( "ended" == phase or "cancelled" == phase ) then
-			buttonGroup.touchID = nil
-			buttonGroup.activeButton = nil
-			if(ship ~= nil) then
-				ship.deltaPerFrame = { 0, 0 }
-			end
+		buttonGroup.touchID = nil
+		buttonGroup.activeButton = nil
+		if(ship ~= nil) then
+			ship.deltaPerFrame = { 0, 0 }
+		end
+		return true
 	end
 end
 
@@ -438,8 +447,8 @@ function scene:create( event )
 	rightButton.ID = "rightBtn"
 
 	local fireButton = display.newImageRect( buttonGroup, "fireButton.png", 100, 100 )
-	fireButton.x, fireButton.y = display.contentWidth - 150, display.contentHeight - 70
-	fireButton.canSlideOn = true
+	fireButton.x, fireButton.y = display.contentWidth - 180, display.contentHeight - 70
+	fireButton.canSlideOn = false
 	fireButton.ID = "fireBtn"
 
 	local groupBounds = buttonGroup.contentBounds
@@ -467,7 +476,6 @@ function scene:create( event )
 
 	-- leftButton:addEventListener( "tap", fireLaser )
 	groupRegion:addEventListener( "touch", dragShip )
-	fireButton:addEventListener( "touch", fireLaser )
 
 	explosionSound = audio.loadSound( "audio/explosion.wav" )
 	fireSound = audio.loadSound( "audio/fire.wav" )
